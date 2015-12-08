@@ -3,6 +3,9 @@ import tornado.web
 import tornado.tcpserver
 import tornado.websocket
 import cPickle as pickle
+import struct
+import logging
+import time
 
 class TCP(tornado.tcpserver.TCPServer):
     #def __init__(self, ws, *args, **kwargs):
@@ -10,23 +13,41 @@ class TCP(tornado.tcpserver.TCPServer):
     #    super(TCP, self).__init__(*args, **kwargs)
 
     def handle_stream(self, stream, address):
-        print stream
         self._stream = stream
-        self._read_line()
+        self.slen = None
+        self.data = ''
+        print 'handle stream {}'.format(stream)
+        self._stream.read_bytes(4, self._first)
 
-    def _read_line(self):
-        self._stream.read_until('\n', self._handle_read)
+    def _first(self, chunk):
+        if len(chunk) >= 4: 
+            self.slen = struct.unpack(">L", chunk)[0]
+            self._stream.read_bytes(self.slen-len(self.data), self._read)
+        else:
+            self._stream.read_bytes(4, self._first)
 
-    def _handle_read(self, data):
-        try:
-            #converted = pickle.loads(data)
-            pass
-            #print data
-        except Exception as e: 
-            print '{}: {}'.format(type(e).__name__, e)
-        #print 'data: {}'.format(pickle.loads(data))
-        self._stream.write(data)
-        self._read_line()
+    def _read(self, chunk):
+        self.data += chunk
+        if len(self.data) == self.slen:
+            self._process()
+        else: 
+            self._stream.read_bytes(self.slen-len(self.data), self._read)
+
+    def _process(self):
+        #print self.data
+
+        obj = logging.makeLogRecord(pickle.loads(self.data))
+        print time.time(), obj
+        self.slen = None
+        self.data = ''
+        self._stream.read_bytes(4, self._first)
+
+    def unpickle(self, data):
+        return pickle.loads(data)
+
+    def handle_log_record(self, record):
+        print record
+
 
 class WebSocketHandler(tornado.websocket.WebSocketHandler):
     def open(self, *args):
