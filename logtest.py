@@ -9,4 +9,4 @@ logger.addHandler(handler)
 logger.addHandler(stream)
 while True: 
     logger.warning('ping')
-    time.sleep(1)
+    time.sleep(.001)

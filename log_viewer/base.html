@@ -1,8 +1,30 @@
+<!doctype html>
 <html>
 <head>
-    <title>hello world</title>
+<meta charset="UTF-8">
+<title>Log Events at TCP Port {{ port }}</title>
 </head>
 <body>
-    hello  
+<ul id="content"></ul>
+<script src="http://www.google.com/jsapi"></script>
+<script>google.load("jquery", "1.3")</script>
+<script src="http://jquery-json.googlecode.com/files/jquery.json-2.2.min.js"></script>
+<script src="http://jquery-websocket.googlecode.com/files/jquery.websocket-0.0.1.js"></script>
+<script>
+var ws = new WebSocket('ws://127.0.0.1:{{ port }}/ws');
+var count = 0; 
+
+ws.onmessage = function(e) {
+    $('#content').append('<li>' + e.data + '</li>');
+    if (count > {{ n_display_items}}) {
+        $('#content li:first-child').remove();
+    }
+    else {
+        count++; 
+    }
+
+}
+
+</script>
 </body>
 </html>
