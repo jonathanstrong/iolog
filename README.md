@@ -1,2 +1,2 @@
-# log-viewer
-view logging messages sent with TCP on a web page via a websocket.
+# iolog
+Route logging messages from TCP to a websocket for streaming log events on a web page.

@@ -7,35 +7,54 @@ import struct
 import logging
 import time
 import StringIO
-from tornado.options import define, options
-
-define('tcp_port', default=9020, help='port to listen for log events')
-define('ws_port', default=6060, help='port to send websocket messages and serve page')
-define('n_display_items', default=100, help='number of log events to keep displayed before purging oldest')
 
 
-#log_format = '[%(time_since_last_any)s][%(asctime)s][%(levelname)s][%(filename)s:%(funcName)s:%(lineno)s] %(message)s'
-log_format = '[%(asctime)s][%(levelname)s][%(filename)s:%(funcName)s:%(lineno)s] %(message)s'
+log_format = '[%(time_since_last_any)s][%(asctime)s][%(levelname)s][%(filename)s:%(funcName)s:%(lineno)s] %(message)s'
+#log_format = '[%(asctime)s][%(levelname)s][%(filename)s:%(funcName)s:%(lineno)s] %(message)s'
 
 websockets = [] 
 
-class TCP(tornado.tcpserver.TCPServer):
+class TCPServer(tornado.tcpserver.TCPServer):
+    """
+    we take the log records via TCP and send them
+    to each open websocket connection. 
+
+    this can also just print log records received
+    via TCP if desired. 
+
+    """
+    ws = True # flag for whether to route to websockets
+
     def __init__(self, *args, **kwargs):
+        ws = kwargs.pop('ws', None)
+        if ws:
+            self.ws = ws
         super(TCP, self).__init__(*args, **kwargs)
-        self.logger = logging.getLogger(__name__)
-        self.buffer = StringIO.StringIO()
-        self.log_handler = logging.StreamHandler(self.buffer)
-        self.log_format = logging.Formatter(log_format)
-        self.log_handler.setFormatter(self.log_format)
-        self.logger.addHandler(self.log_handler)
-        self.logger.propagate = False
-        
+        if self.ws:
+            assert 'websockets' in globals(), 'Need an empty list "websockets" in global \
+                    namespace to keep track of open connections.'
+            self.logger = logging.getLogger(__name__)
+            self.buffer = StringIO.StringIO()
+            self.log_handler = logging.StreamHandler(self.buffer)
+            self.log_format = logging.Formatter(log_format)
+            self.log_handler.setFormatter(self.log_format)
+            self.logger.addHandler(self.log_handler)
+            self.logger.propagate = False
+        else:
+            "for just printing output"
+            self.logger = logging.getLogger(__name__)
+            self.log_format = logging.Formatter(log_format)
+            self.log_handler = logging.StreamHandler()
+            self.log_handler.setLevel(logging.DEBUG)
+            self.log_handler.setFormatter(self.log_format)
+            self.logger.addHandler(self.log_handler)
+            self.logger.propagate = False
 
     def handle_stream(self, stream, address):
         self._stream = stream
         self.slen = None
         self.data = ''
-        print 'handle stream {}'.format(stream)
+        print 'handling stream {}'.format(stream)
         self._stream.read_bytes(4, self._first)
 
     def _first(self, chunk):
@@ -71,15 +90,17 @@ class TCP(tornado.tcpserver.TCPServer):
         from buffer.
         """
         self.logger.handle(record)
-        record = self.buffer.getvalue()
-        self.buffer.truncate(0)
-        #print 'len(websockets): {}'.format(len(websockets))
-        for ws in websockets:
-            ws.write_message(record)
+        if self.ws:
+            record = self.buffer.getvalue()
+            self.buffer.truncate(0)
+            for ws in websockets:
+                ws.write_message(record)
 
 
 class WebSocketHandler(tornado.websocket.WebSocketHandler):
     def open(self, *args):
+        assert 'websockets' in globals(), 'Need an empty list "websockets" in global \
+                namespace to keep track of open connections.'
         print "New connection"
         if self not in websockets:
             websockets.append(self)
@@ -96,19 +117,4 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
     def check_origin(self, origin):
         return True
 
-class MainHandler(tornado.web.RequestHandler):
-    def get(self):
-        self.render('base.html', port=options.ws_port, n_display_items=options.n_display_items)
 
-def make_app():
-    return tornado.web.Application([
-        (r'/$', MainHandler), 
-        (r'/ws', WebSocketHandler),
-    ])
-
-if __name__ == '__main__':
-    tcp = TCP()
-    tcp.listen(options.tcp_port)
-    app = make_app()
-    app.listen(options.ws_port)
-    tornado.ioloop.IOLoop.current().start()
