@@ -23,13 +23,13 @@ class TCPServer(tornado.tcpserver.TCPServer):
     via TCP if desired. 
 
     """
-    ws = True # flag for whether to route to websockets
+    ws = True # default flag for whether to route to websockets
 
     def __init__(self, *args, **kwargs):
         ws = kwargs.pop('ws', None)
         if ws:
             self.ws = ws
-        super(TCP, self).__init__(*args, **kwargs)
+        super(TCPServer, self).__init__(*args, **kwargs)
         if self.ws:
             assert 'websockets' in globals(), 'Need an empty list "websockets" in global \
                     namespace to keep track of open connections.'

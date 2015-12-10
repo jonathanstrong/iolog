@@ -11,7 +11,7 @@ config = {
     'author_email': 'jonathan.strong@gmail.com',
     'version': '0.1',
     'install_requires': ['tornado'],
-    'packages': ['log_viewer'],
+    'packages': ['iolog'],
     'scripts': [],
     'name': 'iolog'
 }
